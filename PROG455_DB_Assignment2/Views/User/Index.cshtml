@@ -1,30 +1,47 @@
-﻿@model PROG455_DB_Assignment2.Models.User
+﻿@model IEnumerable<PROG455_DB_Assignment2.Models.User>
 
 @{
     ViewData["Title"] = "Index";
 }
 
-<h1>User Sign In</h1>
-<h4>@Html.ActionLink("User Controller", "SignUp", "User")</h4>
+<h1>Index</h1>
 
+<h4>@Html.ActionLink("Sign In", "SignIn", "User")</h4>
+<h4>@Html.ActionLink("Sign Up", "SignUp", "User")</h4>
+<h4>@Html.ActionLink("Account", "Account", "User")</h4>
 
-@using (Html.BeginForm("SignIn", "User", FormMethod.Post))
-{
-
-    <div class="form-group">
-        @Html.LabelFor(m => m.Name, new { @class = "col-md-2 control-label" })
-        <div class="col-md-10">
-            @Html.TextBoxFor(m => m.Name, new { @class = "form-control" })
-        </div>
-    </div>
-    <div class="form-group">
-        @Html.LabelFor(m => m.Password, new { @class = "col-md-2 control-label" })
-        <div class="col-md-10">
-            @Html.PasswordFor(m => m.Password, new { @class = "form-control" })
-        </div>
-    </div>
-
-    <div class="form-group">
-        <input type="submit" class="btn btn-default" value="Sign In" />
-    </div>
+<table class="table">
+    <thead>
+        <tr>
+            <th>
+                @Html.DisplayNameFor(model => model.ID)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.Name)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.Password)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.Location)
+            </th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+@foreach (var item in Model) {
+        <tr>
+            <td>
+                @Html.DisplayFor(modelItem => item.Name)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.Location)
+            </td>
+            <td>
+                @Html.ActionLink("Add", "AddFriend", new { /* id=item.PrimaryKey */ }) |
+                @Html.ActionLink("Remove", "RemoveFriend", new { /* id=item.PrimaryKey */ })
+            </td>
+        </tr>
 }
+    </tbody>
+</table>

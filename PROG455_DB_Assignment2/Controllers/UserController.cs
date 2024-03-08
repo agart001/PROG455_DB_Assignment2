@@ -2,39 +2,49 @@
 using Microsoft.AspNetCore.Mvc;
 using Newtonsoft.Json;
 using PROG455_DB_Assignment2.Models;
+using System;
+using System.Linq.Expressions;
+using System.Xml.Linq;
 
 namespace PROG455_DB_Assignment2.Controllers
 {
     public class UserController : Controller
     {
-        static string BaseUrl = "http://ec2-3-138-190-113.us-east-2.compute.amazonaws.com/index.php?";
+        static string BaseUrl = "http://ec2-18-223-162-6.us-east-2.compute.amazonaws.com/handle.php?";
         static API? api = new(BaseUrl);
+        
 
-        // GET: SignInController
-        /*
+        T? GETResultDeserialization<T>()
+        {
+            if (api == null) throw new NullReferenceException($"{nameof(api)} : Null API");
+            if (api.GETResult == null) throw new NullReferenceException($"{nameof(api.GETResult)} : API post res failed");
+
+            var lis = api.NSJsonDeserialize<List<T>>(api.GETResult);
+
+            if (lis == null) throw new NullReferenceException($"{nameof(lis)} : Deserialization Failed");
+
+            return lis.FirstOrDefault();
+        }
+
         public async Task<ActionResult> Index()
         {
-            await api.AsyncGET("check-connection");
-            var res = api.GETResult;
-
-
-            return View();
+            await api.AsyncGET(new KeyValuePair<string, string>(
+                "get-query",
+                new APIQuery
+                {
+                Table = "PROG455_DB",
+                Query = $"SELECT * FROM Users"
+                }.ToString()
+            ));
+            
+            var lis = api.NSJsonDeserialize<List<User>>(api.GETResult);
+            //var session_json = HttpContext.Session.GetString("Repo");
+            return View(lis);
         }
-        */
 
-        public ActionResult Index()
-        {
-            return View();
-        }
-
-        // GET: SignInController/Details/5
-        public ActionResult Details(int id)
-        {
-            return View();
-        }
 
         // GET: SignInController/Create
-        public ActionResult SignIn()
+        public async Task<ActionResult> SignIn()
         {
             return View();
         }
@@ -46,29 +56,34 @@ namespace PROG455_DB_Assignment2.Controllers
         {
             try
             {
-                User? user;
                 var name  = (string)collection["Name"] 
                     ?? throw new InvalidCastException($"{nameof(collection)} : Name : string");
 
                 var password = (string)collection["Password"]
                     ?? throw new InvalidCastException($"{nameof(collection)} : Password : string");
 
-                await api.AsyncPOST(new Dictionary<string, string>
+                await api.AsyncGET(new KeyValuePair<string, string>(
+                    "get-query",
+                    new APIQuery
                     {
-                        {"get-user",  name}
-                    });
+                        Table = "PROG455_DB",
+                        Query = $"SELECT * FROM Users WHERE Name = '{name}'"
+                    }.ToString()
+                    ));
 
-                if (api.POSTResult != null)
-                {
-                    user = api.NSJsonDeserialize<User>(api.POSTResult);
-                }
-                else { user = null; }
+                var res = api.GETResult;
 
-                if (user == null) throw new NullReferenceException($"{nameof(user)} : Login User : Deserialize Fail");
+                var lis = api.NSJsonDeserialize<List<User>>(res);
+
+                if (lis == null) throw new NullReferenceException($"{nameof(lis)} : Deserialization Failed");
+                User user = lis.FirstOrDefault();
+
+                if (user.Password != password) throw new Exception("Incorret Password");
 
 
+                HttpContext.Session.SetString("UserID", $"{user.ID}");
 
-                return RedirectToAction(nameof(Index));
+                return RedirectToAction(nameof(Account));
             }
             catch
             {
@@ -91,21 +106,26 @@ namespace PROG455_DB_Assignment2.Controllers
                 var name = (string)collection["Name"]
                     ?? throw new InvalidCastException($"{nameof(collection)} : Name : string");
 
+
                 var password = (string)collection["Password"]
                     ?? throw new InvalidCastException($"{nameof(collection)} : Password : string");
 
                 User user = new User(name, password);
 
-                var json = api.NSJsonSerialize(user);
-
 
                 await api.AsyncPOST(new Dictionary<string, string>
                 {
-                    {"add-user",  json }
+                    {"post-query", new APIQuery
+                    {
+                        Table = "PROG455_DB",
+                        Query = "INSERT INTO Users (ID, Name, Password, Location) " +
+                            $"VALUES ('{user.ID}', '{user.Name}', '{user.Password}', '{user.Location}')"
+                    }.ToString()}
                 });
 
+                HttpContext.Session.SetString("UserID", $"{user.ID}");
 
-                return RedirectToAction(nameof(Index));
+                return RedirectToAction(nameof(Account));
             }
             catch 
             {
@@ -114,19 +134,61 @@ namespace PROG455_DB_Assignment2.Controllers
         }
 
         // GET: SignInController/Edit/5
-        public async Task<ActionResult> Account(int id)
+        public async Task<ActionResult> Account()
         {
-            await api.AsyncPOST(new Dictionary<string, string>
-            {
-                {"add-user",  $"{id}" }
-            });
+            var id = HttpContext.Session.GetString("UserID");
 
-            var res = api.POSTResult;
-            User user = JsonConvert.DeserializeObject<User>(res) 
-                ?? throw new NullReferenceException($"{nameof(user)} : Deserialization Failure");
+            await api.AsyncGET(new KeyValuePair<string, string>(
+                    "get-query",
+                    new APIQuery
+                    {
+                        Table = "PROG455_DB",
+                        Query = $"SELECT * FROM Users WHERE ID = '{id}'"
+                    }.ToString()
+                    ));
 
-            
+            User user = GETResultDeserialization<User>()
+                ?? throw new NullReferenceException($"{nameof(GETResultDeserialization)} : Deserialization Failure");
 
+            await api.AsyncGET(new KeyValuePair<string, string>(
+                    "get-query",
+                    new APIQuery
+                    {
+                        Table = "PROG455_DB",
+                        Query = $"SELECT FrJson FROM Friends WHERE UserID = '{id}'"
+                    }.ToString()
+                    ));
+
+            var res2 = api.POSTResult;
+            ViewBag["Main"] = true;
+            return View();
+        }
+
+        public async Task<ActionResult> Details(int id)
+        {
+            await api.AsyncGET(new KeyValuePair<string, string>(
+                    "get-query",
+                    new APIQuery
+                    {
+                        Table = "PROG455_DB",
+                        Query = $"SELECT * FROM Users WHERE ID = '{id}'"
+                    }.ToString()
+                    ));
+
+            User user = GETResultDeserialization<User>()
+                ?? throw new NullReferenceException($"{nameof(GETResultDeserialization)} : Deserialization Failure");
+
+            await api.AsyncGET(new KeyValuePair<string, string>(
+                    "get-query",
+                    new APIQuery
+                    {
+                        Table = "PROG455_DB",
+                        Query = $"SELECT FrJson FROM Friends WHERE UserID = '{id}'"
+                    }.ToString()
+                    ));
+
+            var res2 = api.POSTResult;
+            ViewBag["Main"] = false;
             return View();
         }
 
